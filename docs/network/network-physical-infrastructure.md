@@ -1,179 +1,82 @@
 # Network & Physical Infrastructure Security Architecture
-
-**Organization:** Eric Feldmann, LLC
-**Control Owner:** Yeray Y. Lafontaine Martinez
-**Program Phase:** Cloud Security Establishment (Phase 1–2)
-**Status:** Active — Point-in-Time Configuration Snapshot
-**Last Updated:** February 2026
+**Eric Feldmann, LLC / Mosaic Diagnostic Imaging**
+*Last Updated: March 2026 | Version: 2.0*
 
 ---
 
-## 1. Purpose & Scope
+## Deployed Sites
 
-This document defines the physical infrastructure, network topology, connectivity governance, and site-level security controls deployed across organizational locations. It establishes:
-
-- Network boundary architecture
-- Site-to-site connectivity model
-- Firewall authority
-- Wireless governance
-- Non-standard asset physical safeguards
-- Deferred segmentation roadmap
-
----
-
-## 2. Deployed Sites
-
-| Site | Location | Status |
-|------|----------|--------|
-| Site 1 | Newark, DE | Active |
-| Site 2 | Wilmington, DE | Active |
-| Site 3 | Dover, DE | Active |
-| Site 4 | Milford, DE | Active |
-| Site 5 | Seaford, DE | Active |
-
-All sites follow an identical architecture model for consistency and operational simplicity.
-
----
-
-## 3. Network Architecture
-
-### 3.1 Core Components Per Site
-
-| Component | Model / Type | Role |
-|-----------|-------------|------|
-| ISP | Verizon Business | WAN connectivity |
-| Firewall / Router | Cisco Meraki MX75 | Routing, firewall, AutoVPN termination |
-| Switches | Business-class PoE | LAN distribution |
-| Wireless AP | Cisco Meraki MR 150AX | Wi-Fi access |
-| UPS | Battery backup | Power conditioning |
-
-The Meraki MX75 serves as the authoritative routing and security boundary at every site.
-
-### 3.2 IP Addressing Schema
-
-| Site | Subnet |
+| Site | Status |
 |------|--------|
-| Newark | 172.31.1.0/24 |
-| Wilmington | 172.31.2.0/24 |
-| Dover | 172.31.3.0/24 |
-| Milford | 172.31.4.0/24 |
-| Seaford | 172.31.5.0/24 |
+| Puerto Rico (PR) | ✅ Reference site — fully hardened |
+| Newark, DE | 🔄 Pending physical MX75 reconnection |
+| Seaford, DE | ⏳ Replication queued |
+| Milford, DE | ⏳ Replication queued |
+| New York Site 1 | ⏳ Topology verification required |
+| New York Site 2 | ⏳ Topology verification required |
 
-- All sites use RFC 1918 private addressing
-- DHCP managed by Meraki MX per site
-- No overlapping subnets across sites
+## Core Architecture Per Site
 
-### 3.3 WAN Connectivity
+- Verizon Business ISP gateway (wireless radios disabled)
+- Cisco Meraki MX75 — routing, stateful firewall, AutoVPN, IDS
+- Business-class PoE switches
+- Meraki 150AX wireless access point
+- UPS battery backup
+- Private subnet: `172.31.x.0/24` per site
+- DHCP and NAT centralized via MX appliance
+- UPnP disabled at gateway level
 
-| Setting | Configuration |
-|---------|--------------|
-| ISP | Verizon Business |
-| Connection Type | Fiber / Business gateway |
-| ISP Gateway Mode | Bridge (MX handles routing) |
-| Static IPs | Deferred — pending ISP coordination |
-| Failover | Not currently configured |
+## Firewall Hardening Standard (PR Reference)
 
----
+### L3 Outbound Deny Rules (9 rules)
+| Port | Protocol | Service |
+|------|----------|---------|
+| 23 | TCP | Telnet |
+| 25 | TCP | SMTP outbound |
+| 135 | TCP | RPC |
+| 137-139 | TCP+UDP | NetBIOS |
+| 445 | TCP | SMB |
+| 1080 | TCP | SOCKS proxy |
+| 3389 | TCP | RDP |
+| 4444 | TCP | Metasploit default |
 
-## 4. AutoVPN (Hub-and-Spoke)
+### L7 & Content Controls
+- L7 category blocking: Gaming, Sports, Video/Music, Blogging, Advertising
+- Content Filtering: full threat + content categories
+- Safe Search enforcement, YouTube Strict mode
+- Cisco AMP (Advanced Malware Protection) enabled
+- IDS in Prevention/Security mode
+- IP spoofing protection enabled
+- No port forwarding rules
 
-### 4.1 Topology
+## AutoVPN Architecture
 
-All sites are connected in a **hub-and-spoke AutoVPN** topology managed via Meraki Dashboard.
+- Hub-and-spoke topology — PR as hub
+- Encrypted site-to-site tunnels across all 6 sites
+- Centralized east-west traffic visibility
 
-```
-          [Hub — Primary Site]
-               |
-    ┌──────────┼──────────┐
-    │          │          │
-[Newark]  [Wilmington] [Dover]
-              │
-         [Milford]
-              │
-         [Seaford]
-```
+## Cisco Duo RADIUS MFA — Client VPN
 
-### 4.2 AutoVPN Configuration
+Deployed March 13, 2026. Closes compensating control CC-VPN-001. Satisfies Beazley Q5.
 
-| Setting | Value |
-|---------|-------|
-| Mode | Hub-and-spoke |
-| Encryption | AES-256 |
-| Authentication | Pre-shared key (PSK) |
-| Tunnel Type | Full tunnel (split tunnel not used) |
-| Management | Centralized via Meraki Dashboard |
-
----
-
-## 5. Firewall & Security Policy
-
-### 5.1 MX75 Firewall Posture
-
-| Control | Configuration |
-|---------|--------------|
-| Default inbound rule | Deny all |
-| Outbound policy | Permit required business traffic |
-| IDS/IPS | Enabled (Meraki Advanced Security) |
-| Content filtering | Enabled |
-| Geo-IP blocking | Applied to high-risk regions |
-| Malware protection | Enabled (Cisco AMP integration) |
-
-### 5.2 DNS
-
-- DNS provided via ISP / Meraki DHCP
-- No split-DNS currently configured
-- DNS-over-HTTPS: not enforced at network level (enforced via browser policy)
-
----
-
-## 6. Wireless Architecture
-
-### 6.1 SSID Configuration
-
-| SSID | Purpose | Security |
-|------|---------|---------|
-| Staff Network | Employee devices | WPA3 / WPA2-Personal, hidden |
-| Patient / Guest | Patient intake iPads | Isolated, internet-only, captive portal |
-
-### 6.2 AP Configuration
-
-| Setting | Value |
-|---------|-------|
-| Model | Cisco Meraki MR 150AX |
-| Management | Meraki Dashboard (cloud) |
-| Channel | Auto-optimized |
-| Band | 2.4GHz + 5GHz (dual-band) |
-| Client Isolation | Enabled on guest SSID |
-
----
-
-## 7. Non-Standard Assets
-
-### 7.1 Linux AI Servers
-
-| Attribute | Detail |
+| Component | Detail |
 |-----------|--------|
-| Purpose | On-site automation / Power Automate workloads |
-| OS | Ubuntu Linux |
-| Network Connection | Wired only (no Wi-Fi) |
-| Encryption | LVM full-disk encryption |
-| MDM | Not enrolled |
-| Physical Access | Restricted — server room / locked area |
-| Roadmap | Security review and potential Defender onboarding (Phase 4) |
+| Duo Auth Proxy version | 6.6.0 |
+| Host OS | Ubuntu 24.04.4 LTS |
+| Server | mdi-app-server-prod (172.31.200.51) |
+| RADIUS port | 1812 |
+| Service account | duo_authproxy_svc (non-privileged, no login shell) |
+| Systemd service | duoauthproxy.service (auto-start) |
+| Failmode | Safe |
 
-### 7.2 iPads (Patient Intake)
+**Auth flow:** `VPN Client → Meraki MX75 → Duo Auth Proxy :1812 → Duo Cloud → MFA push → access granted`
 
-See: [iPad Deployment & Configuration Record](../endpoint/ipad-deployment-configuration.md)
+## AI Server Physical Controls
 
----
-
-## 8. Deferred Items & Roadmap
-
-| Item | Status | Target Phase |
-|------|--------|-------------|
-| Static IP provisioning (all sites) | Deferred — ISP coordination required | Phase 0 |
-| VLAN segmentation (staff / clinical / IoT) | Planned | Phase 3 |
-| Network Access Control (NAC) | Evaluated post-segmentation | Phase 4 |
-| WAN failover / secondary ISP | Evaluated | Phase 4 |
-| NVR / IP camera retention policy | Deferred | Phase 3 |
-| Sentinel network telemetry ingestion | Pending Sentinel evaluation | Phase 4 |
+Two Linux AI servers at PR site (n8n + Docker + Ollama, ePHI-adjacent):
+- LVM full disk encryption
+- Wired-only — no Wi-Fi or Bluetooth
+- Physically secured at PR site
+- Non-privileged service accounts
+- SSH hardening in progress
+- Log forwarding to Log Analytics in implementation
